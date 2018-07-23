@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "Public/DrawDebugHelpers.h"
 #include "MyCharacter.generated.h"
 
 UCLASS()
@@ -53,29 +54,29 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxSlope() { return mMaxSlope; };
-	//UFUNCTION(BlueprintCallable, Category = "Walk")
-		//void SetMaxSlope(float iMaxSlope) { mMaxSlope = iMaxSlope; };
 
 private:
-	UCharacterMovementComponent* mpMovement;
-	UCapsuleComponent* mpCapsule;
-
 	// Max speed when walking
-	UPROPERTY(EditDefaultsOnly,  BlueprintGetter = GetMaxWalkSpeed, BlueprintSetter = SetMaxWalkSpeed, Category = "Walk")
-	float mMaxWalkSpeed;
+	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxWalkSpeed, BlueprintSetter = SetMaxWalkSpeed, Category = "Walk")
+		float mMaxWalkSpeed;
 
 	// Max step height
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxStepHeight, Category = "Walk" )
-	float mMaxStepHeight;
+	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxStepHeight, Category = "Walk")
+		float mMaxStepHeight;
 
 	// Max slope angle
 	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxSlope, Category = "Walk")
-	float mMaxSlope;
+		float mMaxSlope;
 
 	// Current Gravity
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetGravity, BlueprintSetter = SetGravity, Category = "Movement", meta=(DisplayName = "Gravity"))
-	FVector mGravity;
+	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetGravity, BlueprintSetter = SetGravity, Category = "Movement", meta = (DisplayName = "Gravity"))
+		FVector mGravity;
 	// Normalized Gravity
 	FVector mGravityNormal;
-	
+
+	UCharacterMovementComponent* mpMovement;
+	UCapsuleComponent* mpCapsule;
+	float mCntSlope;
+
+	void MoveTo(FVector iLocation);
 };
