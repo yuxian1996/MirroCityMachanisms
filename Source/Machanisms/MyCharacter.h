@@ -26,7 +26,8 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Walk")
 		void UpdateWalk();
 
-
+	UFUNCTION(BlueprintCallable, Category = "Jump")
+		void UpdateJump();
 
 public:	
 	// Called every frame
@@ -35,16 +36,13 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	// Getter and Setter of max walk speed
 	UFUNCTION(BlueprintPure, Category ="Walk" )
 	float GetMaxWalkSpeed() { return mMaxWalkSpeed; };
 	UFUNCTION(BlueprintCallable, Category = "Walk")
 	void SetMaxWalkSpeed(float iMaxWalkSpeed) { mMaxWalkSpeed = iMaxWalkSpeed; };
 
-	UFUNCTION(BlueprintPure, Category = "Walk")
-		float GetMaxStepHeight() { return mMaxStepHeight; };
-	//UFUNCTION(BlueprintCallable, Category = "Walk")
-		//void SetMaxStepHeight(float iMaxStepHeight) { mMaxStepHeight = iMaxStepHeight; };
-
+	// Getter and Setter of gravity
 	UFUNCTION(BlueprintPure, Category = "Movement")
 		FVector GetGravity() { return mGravity; };
 	UFUNCTION(BlueprintCallable, Category = "Movement")
@@ -52,31 +50,59 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movement")
 		FVector GetGravityNormal() { return mGravityNormal; };
 
+	// Getter and Setter of acceleration
+	UFUNCTION(BlueprintPure, Category = "Walk")
+		float GetAcceleration() { return mAcceleration; };
+	UFUNCTION(BlueprintCallable, Category = "Walk")
+		void SetAcceleration(float iAcc) { mAcceleration = iAcc; };
+
+	// Getter and Setter of AirControl
+	UFUNCTION(BlueprintPure, Category = "Jump")
+		float GetAirControl() { return mAirControl; };
+	UFUNCTION(BlueprintCallable, Category = "Jump")
+		void SetAirControl(float iAirControl) { mAirControl = iAirControl; };
+
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxSlope() { return mMaxSlope; };
+	UFUNCTION(BlueprintPure, Category = "Walk")
+		float GetMaxStepHeight() { return mMaxStepHeight; };
 
 private:
 	// Max speed when walking
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxWalkSpeed, BlueprintSetter = SetMaxWalkSpeed, Category = "Walk")
+	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Max Walk Speed"))
 		float mMaxWalkSpeed;
 
 	// Max step height
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxStepHeight, Category = "Walk")
+	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Max Step Height"))
 		float mMaxStepHeight;
 
 	// Max slope angle
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetMaxSlope, Category = "Walk")
+	UPROPERTY(EditDefaultsOnly,Category = "Walk", meta = (DisplayName = "Max Slope"))
 		float mMaxSlope;
 
 	// Current Gravity
-	UPROPERTY(EditDefaultsOnly, BlueprintGetter = GetGravity, BlueprintSetter = SetGravity, Category = "Movement", meta = (DisplayName = "Gravity"))
+	UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (DisplayName = "Gravity"))
 		FVector mGravity;
+
+	// Acceleration
+	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Acceleration"))
+		float mAcceleration;
+
+	// Air Control When Jumping
+	UPROPERTY(EditDefaultsOnly, Category = "Jump", meta = (DisplayName = "Air Control"))
+		float mAirControl;
+
+
 	// Normalized Gravity
 	FVector mGravityNormal;
 
 	UCharacterMovementComponent* mpMovement;
 	UCapsuleComponent* mpCapsule;
-	float mCntSlope;
+	bool bIsBesideWall = false;
+	FVector wallNormal;
+	FVector mVelocity;
 
 	void MoveTo(FVector iLocation);
+	bool TryWalk(FVector& oHitNormal);
+	void Accelerate();
 };
