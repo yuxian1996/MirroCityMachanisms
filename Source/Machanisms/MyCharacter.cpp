@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Public/TimerManager.h"
 #include "Public/DrawDebugHelpers.h"
+#include "Public/UObject/ConstructorHelpers.h"
 
 
 // Sets default values
@@ -17,6 +18,9 @@ AMyCharacter::AMyCharacter()
 	mGravity = FVector(0, 0, -980.0f);
 	mAcceleration = 800;
 	mAngularSpeed = 75;
+
+	auto finder = ConstructorHelpers::FClassFinder<AActor>(TEXT("/Game/FirstPersonBP/Blueprints/Ledge"));
+	mLedgeClass = finder.Class;
 }
 
 // Called when the game starts or when spawned
@@ -26,6 +30,7 @@ void AMyCharacter::BeginPlay()
 
 	mpMovement = GetCharacterMovement();
 	mpCapsule = GetCapsuleComponent();
+	mCone = Cast<UStaticMeshComponent>(GetComponentByClass(UStaticMeshComponent::StaticClass()));
 	mGravityNormal = mGravity.GetSafeNormal();
 }
 
@@ -153,6 +158,19 @@ bool AMyCharacter::IsTouchingCeil()
 
 	return GetWorld()->SweepSingleByChannel(hitResult, start, end, GetActorQuat(), ECollisionChannel::ECC_Visibility,
 		FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), params);
+}
+
+AActor* AMyCharacter::GetLedge()
+{
+	TArray<AActor*> overlappingActors;
+	mCone->GetOverlappingActors(overlappingActors, mLedgeClass);
+
+	if (overlappingActors.Num() != 0)
+	{
+		return overlappingActors[0];
+	}
+
+	return nullptr;
 }
 
 bool AMyCharacter::TryWalk(FVector& oHitNormal)

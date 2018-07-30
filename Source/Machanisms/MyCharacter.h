@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "MyCharacter.generated.h"
 
@@ -41,6 +42,10 @@ protected:
 	// Called to determine if player is touching ceil
 	UFUNCTION(BlueprintPure, Category = "Movement")
 		bool IsTouchingCeil();
+
+	// Called to get the closest ledge
+	UFUNCTION(BlueprintCallable, Category = "HoldOnLedge")
+		AActor* GetLedge();
 
 public:	
 	// Called every frame
@@ -126,11 +131,14 @@ private:
 
 	UCharacterMovementComponent* mpMovement;
 	UCapsuleComponent* mpCapsule;
+	UStaticMeshComponent* mCone;
+
 	bool bIsBesideWall = false;
 	FVector wallNormal;
 	FVector mVelocity;
 	FTimerHandle mGravityHandle;
 	FTimerDelegate mGravityDel;
+	TSubclassOf<AActor> mLedgeClass;
 
 	void MoveTo(FVector iLocation);
 	bool TryWalk(FVector& oHitNormal);
