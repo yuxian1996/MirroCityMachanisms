@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "MyCharacter.h"
+#include "Public/TimerManager.h"
+#include "Public/DrawDebugHelpers.h"
 
 
 // Sets default values
@@ -13,7 +15,8 @@ AMyCharacter::AMyCharacter()
 	mMaxSlope = 45.0f;
 	mMaxStepHeight = 50.0f;
 	mGravity = FVector(0, 0, -980.0f);
-	mAcceleration = 1000;
+	mAcceleration = 800;
+	mAngularSpeed = 75;
 }
 
 // Called when the game starts or when spawned
@@ -89,10 +92,67 @@ void AMyCharacter::UpdateWalk()
 
 void AMyCharacter::UpdateJump()
 {
+	if (IsTouchingCeil())
+	{
+		//UE_LOG(LogTemp, Log, TEXT("Player is touching ceil"));
+		//set up speed to 0
+		mVelocity = mVelocity.ProjectOnToNormal(mGravityNormal);
+		mpMovement->Velocity = mVelocity;
+	}
+
 	FVector inputVector = mpMovement->GetLastInputVector();
 
 	FVector diff = inputVector * mMaxWalkSpeed;
 	SetActorLocation(GetActorLocation() + diff * GetWorld()->DeltaTimeSeconds);
+}
+
+void AMyCharacter::ChangeGravity(FVector iGravity)
+{
+	FVector normal = iGravity.GetSafeNormal();
+	float roll = FMath::RadiansToDegrees(FMath::Acos(iGravity.ProjectOnTo(mGravityNormal).Size() / iGravity.Size())) ;
+
+	SetGravity(iGravity);
+
+	// set timer if it's not set
+	if (!GetWorldTimerManager().TimerExists(mGravityHandle))
+	{
+		mGravityDel.BindUFunction(this, FName("ChangeGravityFunc"), mAngularSpeed, roll, FVector::CrossProduct(-GetActorUpVector(), mGravityNormal));
+		GetWorldTimerManager().SetTimer(mGravityHandle, mGravityDel, 0.005f, true, 0);
+	}
+	
+}
+
+bool AMyCharacter::IsOnGround()
+{
+	FVector start = GetActorLocation() - GetActorUpVector() * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
+	FVector end = start - GetActorUpVector();
+
+	FHitResult hitResult;
+	FCollisionQueryParams params;
+	params.AddIgnoredActor(this);
+
+	//DrawDebugSphere(GetWorld(), start, mpCapsule->GetScaledCapsuleRadius(), 50, FColor::Blue);
+	//DrawDebugSphere(GetWorld(), end, mpCapsule->GetScaledCapsuleRadius(), 50, FColor::Blue);
+
+	return GetWorld()->SweepSingleByChannel(hitResult, start, end, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+		FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), params);
+
+}
+
+bool AMyCharacter::IsTouchingCeil()
+{
+	FVector start = GetActorLocation() + GetActorUpVector() * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
+	FVector end = start + GetActorUpVector();
+
+	FHitResult hitResult;
+	FCollisionQueryParams params;
+	params.AddIgnoredActor(this);
+
+	//DrawDebugSphere(GetWorld(), start, mpCapsule->GetScaledCapsuleRadius(), 50, FColor::Blue);
+	//DrawDebugSphere(GetWorld(), end, mpCapsule->GetScaledCapsuleRadius(), 50, FColor::Blue);
+
+	return GetWorld()->SweepSingleByChannel(hitResult, start, end, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+		FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), params);
 }
 
 bool AMyCharacter::TryWalk(FVector& oHitNormal)
@@ -198,6 +258,58 @@ void AMyCharacter::Accelerate()
 	if (mVelocity.SizeSquared() > mMaxWalkSpeed * mMaxWalkSpeed)
 	{
 		mVelocity = mVelocity.GetSafeNormal() * mMaxWalkSpeed;
+	}
+}
+
+void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector iRotateAxis)
+{
+	static float roll = 0;
+	if (!bIsChangingGravity)
+	{
+		// init
+		bIsChangingGravity = true;
+		mpMovement->SetMovementMode(MOVE_Custom, 1);
+		roll = 0;
+	}
+	else
+	{
+		// 
+		FVector downVector = -GetActorUpVector();
+		float angle = FMath::Acos(downVector.ProjectOnTo(mGravityNormal).Size());
+
+		if (angle > 0.005f)
+		{
+			// update
+			float deltaRoll = GetWorldTimerManager().GetTimerRate(mGravityHandle) * iAngularSpeed;
+			roll += deltaRoll;
+
+			auto deltaQuat = FQuat(iRotateAxis, FMath::DegreesToRadians(deltaRoll));
+		
+			//UE_LOG(LogTemp, Log, TEXT(" iRoll = %f"), roll);
+
+			AddActorWorldRotation(deltaQuat);
+		}
+		else
+		{
+			// fix rotation
+			auto deltaQuat = FQuat(iRotateAxis, angle);
+			AddActorWorldRotation(deltaQuat);
+
+			// clear data
+			roll = 0;
+			bIsChangingGravity = false;
+			GetWorldTimerManager().ClearTimer(mGravityHandle);
+
+			// set movement mode
+			if (IsOnGround())
+			{
+				mpMovement->SetMovementMode(MOVE_Custom, 0);
+			}
+			else
+			{
+				mpMovement->SetMovementMode(MOVE_Custom, 1);
+			}
+		}
 	}
 }
 

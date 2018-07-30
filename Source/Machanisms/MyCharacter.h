@@ -7,7 +7,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
-#include "Public/DrawDebugHelpers.h"
 #include "MyCharacter.generated.h"
 
 UCLASS()
@@ -23,11 +22,25 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	// Called to update velocity when player is walking
 	UFUNCTION(BlueprintCallable, Category = "Walk")
 		void UpdateWalk();
 
+	// Called to update velocity when player is jumping
 	UFUNCTION(BlueprintCallable, Category = "Jump")
 		void UpdateJump();
+
+	// Called to start to change gravity
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+		void ChangeGravity(FVector iGravity);
+
+	// Called to determine if player is on ground
+	UFUNCTION(BlueprintPure, Category = "Movement")
+		bool IsOnGround();
+
+	// Called to determine if player is touching ceil
+	UFUNCTION(BlueprintPure, Category = "Movement")
+		bool IsTouchingCeil();
 
 public:	
 	// Called every frame
@@ -62,10 +75,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Jump")
 		void SetAirControl(float iAirControl) { mAirControl = iAirControl; };
 
+	// Getter and Setter of max slope
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxSlope() { return mMaxSlope; };
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxStepHeight() { return mMaxStepHeight; };
+
+	// Getter and Setter of angular speed
+	UFUNCTION(BlueprintPure, Category = "Movement")
+		float GetAngularSpeed() { return mAngularSpeed; };
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+		void SetAngularSpeed(float iSpeed) { mAngularSpeed = iSpeed; };
+
 
 private:
 	// Max speed when walking
@@ -92,6 +113,13 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "Jump", meta = (DisplayName = "Air Control"))
 		float mAirControl;
 
+	// Is Changing Gravity
+	UPROPERTY(VisibleAnywhere, Category = "Movement", meta = (DisplayName = "Is Changing Gravity"))
+		float bIsChangingGravity;
+
+	// Angular speed (degree / second) when player is changing gravity 
+	UPROPERTY(EditAnywhere, Category = "Movement", meta = (DisplayName = "Angular Speed"))
+		float mAngularSpeed;
 
 	// Normalized Gravity
 	FVector mGravityNormal;
@@ -101,8 +129,14 @@ private:
 	bool bIsBesideWall = false;
 	FVector wallNormal;
 	FVector mVelocity;
+	FTimerHandle mGravityHandle;
+	FTimerDelegate mGravityDel;
 
 	void MoveTo(FVector iLocation);
 	bool TryWalk(FVector& oHitNormal);
 	void Accelerate();
+
+	UFUNCTION()
+		void ChangeGravityFunc(float iSpeed, float iRoll, FVector iRotateAxis);
+
 };
