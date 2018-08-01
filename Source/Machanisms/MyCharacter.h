@@ -31,9 +31,9 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Jump")
 		void UpdateJump();
 
-	// Called to start to change gravity
+	// Called to start to change gravity by an angular speed (degree/second)
 	UFUNCTION(BlueprintCallable, Category = "Movement")
-		void ChangeGravity(FVector iGravity);
+		void ChangeGravity(FVector iGravity, float iAngularSpeed, FVector iAxis = FVector::ZeroVector);
 
 	// Called to determine if player is on ground
 	UFUNCTION(BlueprintPure, Category = "Movement")
@@ -86,13 +86,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxStepHeight() { return mMaxStepHeight; };
 
-	// Getter and Setter of angular speed
-	UFUNCTION(BlueprintPure, Category = "Movement")
-		float GetAngularSpeed() { return mAngularSpeed; };
-	UFUNCTION(BlueprintCallable, Category = "Movement")
-		void SetAngularSpeed(float iSpeed) { mAngularSpeed = iSpeed; };
-
-
 private:
 	// Max speed when walking
 	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Max Walk Speed"))
@@ -122,10 +115,6 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Movement", meta = (DisplayName = "Is Changing Gravity"))
 		float bIsChangingGravity;
 
-	// Angular speed (degree / second) when player is changing gravity 
-	UPROPERTY(EditAnywhere, Category = "Movement", meta = (DisplayName = "Angular Speed"))
-		float mAngularSpeed;
-
 	// Normalized Gravity
 	FVector mGravityNormal;
 
@@ -138,6 +127,7 @@ private:
 	FVector mVelocity;
 	FTimerHandle mGravityHandle;
 	FTimerDelegate mGravityDel;
+	
 	TSubclassOf<AActor> mLedgeClass;
 
 	void MoveTo(FVector iLocation);

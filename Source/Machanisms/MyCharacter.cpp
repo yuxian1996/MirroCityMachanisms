@@ -17,7 +17,6 @@ AMyCharacter::AMyCharacter()
 	mMaxStepHeight = 50.0f;
 	mGravity = FVector(0, 0, -980.0f);
 	mAcceleration = 800;
-	mAngularSpeed = 75;
 
 	auto finder = ConstructorHelpers::FClassFinder<AActor>(TEXT("/Game/FirstPersonBP/Blueprints/Ledge"));
 	mLedgeClass = finder.Class;
@@ -83,8 +82,9 @@ void AMyCharacter::UpdateWalk()
 		}
 
 		// change direction
-		mVelocity = FVector::VectorPlaneProject(mVelocity, mGravityNormal);
-		mVelocity = FVector::VectorPlaneProject(mVelocity, wallNormal);
+		// get right direction of wall
+		FVector rightDirection = FVector::CrossProduct(mGravityNormal, wallNormal);
+		mVelocity = mVelocity.ProjectOnToNormal(rightDirection.GetSafeNormal());
 
 		if (!TryWalk(normal))
 		{
@@ -108,21 +108,48 @@ void AMyCharacter::UpdateJump()
 	FVector inputVector = mpMovement->GetLastInputVector();
 
 	FVector diff = inputVector * mMaxWalkSpeed;
-	SetActorLocation(GetActorLocation() + diff * GetWorld()->DeltaTimeSeconds);
+	FVector newLocation = GetActorLocation() + diff * GetWorld()->DeltaTimeSeconds;
+
+	FHitResult hitResult;
+	FCollisionQueryParams params;
+	params.AddIgnoredActor(this);
+
+	if(!GetWorld()->SweepSingleByChannel(hitResult, newLocation, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+		mpCapsule->GetCollisionShape(), params))
+		SetActorLocation(newLocation);
 }
 
-void AMyCharacter::ChangeGravity(FVector iGravity)
+void AMyCharacter::ChangeGravity(FVector iGravity, float iAngularSpeed, FVector iAxis)
 {
 	FVector normal = iGravity.GetSafeNormal();
-	float roll = FMath::RadiansToDegrees(FMath::Acos(iGravity.ProjectOnTo(mGravityNormal).Size() / iGravity.Size())) ;
+	FVector axis;
+	float roll = 0;
+	if (normal.Equals(mGravityNormal))
+		return;
+	else if (normal.Equals(-mGravityNormal))
+	{
+		roll = 180;
+		axis = GetActorRightVector();
+	}
+	else
+	{
+		roll = FMath::RadiansToDegrees(FMath::Acos(iGravity.ProjectOnTo(mGravityNormal).Size() / iGravity.Size()));
+		axis = FVector::CrossProduct(-GetActorUpVector(), normal);
+	}
 
+	if (!iAxis.Equals(FVector::ZeroVector))
+	{
+		axis = iAxis;
+	}
+
+	//UE_LOG(LogTemp, Log, TEXT("axis = %f"), );
 	SetGravity(iGravity);
 
 	// set timer if it's not set
 	if (!GetWorldTimerManager().TimerExists(mGravityHandle))
 	{
-		mGravityDel.BindUFunction(this, FName("ChangeGravityFunc"), mAngularSpeed, roll, FVector::CrossProduct(-GetActorUpVector(), mGravityNormal));
-		GetWorldTimerManager().SetTimer(mGravityHandle, mGravityDel, 0.005f, true, 0);
+		mGravityDel.BindUFunction(this, FName("ChangeGravityFunc"), iAngularSpeed, roll, axis);
+		GetWorldTimerManager().SetTimer(mGravityHandle, mGravityDel, 0.001f, true, 0);
 	}
 	
 }
@@ -157,7 +184,7 @@ bool AMyCharacter::IsTouchingCeil()
 	//DrawDebugSphere(GetWorld(), end, mpCapsule->GetScaledCapsuleRadius(), 50, FColor::Blue);
 
 	return GetWorld()->SweepSingleByChannel(hitResult, start, end, GetActorQuat(), ECollisionChannel::ECC_Visibility,
-		FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), params);
+		FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius() - 1), params);
 }
 
 AActor* AMyCharacter::GetLedge()
@@ -295,7 +322,9 @@ void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector i
 		FVector downVector = -GetActorUpVector();
 		float angle = FMath::Acos(downVector.ProjectOnTo(mGravityNormal).Size());
 
-		if (angle > 0.005f)
+		//UE_LOG(LogTemp, Log, TEXT(" iRoll = %f"), iRoll);
+
+		if (roll  < iRoll || angle > 0.01f)
 		{
 			// update
 			float deltaRoll = GetWorldTimerManager().GetTimerRate(mGravityHandle) * iAngularSpeed;
@@ -303,7 +332,7 @@ void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector i
 
 			auto deltaQuat = FQuat(iRotateAxis, FMath::DegreesToRadians(deltaRoll));
 		
-			//UE_LOG(LogTemp, Log, TEXT(" iRoll = %f"), roll);
+			//UE_LOG(LogTemp, Log, TEXT(" Roll = %f"), deltaRoll);
 
 			AddActorWorldRotation(deltaQuat);
 		}
