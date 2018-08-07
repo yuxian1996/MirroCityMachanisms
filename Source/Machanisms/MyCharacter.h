@@ -86,6 +86,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Walk")
 		float GetMaxStepHeight() { return mMaxStepHeight; };
 
+	// Getter of bIsChangingGravity
+	UFUNCTION(BlueprintPure, Category = "Movement")
+		bool IsChangingGravity() { return bIsChangingGravity; };
+
 private:
 	// Max speed when walking
 	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Max Walk Speed"))
@@ -113,7 +117,7 @@ private:
 
 	// Is Changing Gravity
 	UPROPERTY(VisibleAnywhere, Category = "Movement", meta = (DisplayName = "Is Changing Gravity"))
-		float bIsChangingGravity;
+		bool bIsChangingGravity;
 
 	// Normalized Gravity
 	FVector mGravityNormal;

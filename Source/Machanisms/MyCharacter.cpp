@@ -84,7 +84,7 @@ void AMyCharacter::UpdateWalk()
 		// change direction
 		// get right direction of wall
 		FVector rightDirection = FVector::CrossProduct(mGravityNormal, wallNormal);
-		mVelocity = mVelocity.ProjectOnToNormal(rightDirection.GetSafeNormal());
+		mVelocity = mVelocity.ProjectOnTo(rightDirection);
 
 		if (!TryWalk(normal))
 		{
@@ -101,9 +101,13 @@ void AMyCharacter::UpdateJump()
 	{
 		//UE_LOG(LogTemp, Log, TEXT("Player is touching ceil"));
 		//set up speed to 0
-		mVelocity = mVelocity.ProjectOnToNormal(mGravityNormal);
-		mpMovement->Velocity = mVelocity;
+		FVector tempVelocity = FVector::VectorPlaneProject(mpMovement->Velocity, mGravityNormal);
+		if (FVector::DotProduct(mGravity, mpMovement->Velocity - tempVelocity) < 0)
+		{
+			mVelocity = mpMovement->Velocity = tempVelocity - (mpMovement->Velocity - tempVelocity) / 5;
+		}
 	}
+
 
 	FVector inputVector = mpMovement->GetLastInputVector();
 
@@ -174,7 +178,7 @@ bool AMyCharacter::IsOnGround()
 bool AMyCharacter::IsTouchingCeil()
 {
 	FVector start = GetActorLocation() + GetActorUpVector() * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
-	FVector end = start + GetActorUpVector();
+	FVector end = start + GetActorUpVector() * 2;
 
 	FHitResult hitResult;
 	FCollisionQueryParams params;
@@ -257,27 +261,29 @@ bool AMyCharacter::TryWalk(FVector& oHitNormal)
 			if (angle < mMaxSlope)
 			{
 				// walk on slope
+				FHitResult hitResult1;
 				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
+				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
 					FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleHalfHeight()), queryParams, responseParams);
 
-				MoveTo(top + mGravityNormal * hitResult.Distance);
+				MoveTo(top + mGravityNormal * hitResult1.Distance);
 				//UE_LOG(LogTemp, Log, TEXT("Walk on slope"));
 				return true;
 			}
 			else
 			{
+				FHitResult hitResult2;
 				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
+				world->SweepSingleByChannel(hitResult2, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
 					FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleHalfHeight()), queryParams, responseParams);
 
 				// calculate angle and height of next stairs
-				FVector nextPlaneVector = FVector::VectorPlaneProject(hitResult.ImpactNormal, -mGravityNormal);
+				FVector nextPlaneVector = FVector::VectorPlaneProject(hitResult2.ImpactNormal, -mGravityNormal);
 				float nextAngle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(nextPlaneVector.Size())));
-				if (nextAngle < mMaxSlope && hitResult.Distance >= 0.001f)
+				if (nextAngle < mMaxSlope && hitResult2.Distance >= 0.001f)
 				{
 					// walk on stairs
-					SetActorLocation(top + mGravityNormal * hitResult.Distance);
+					SetActorLocation(top + mGravityNormal * hitResult2.Distance);
 					mpMovement->Velocity = originalVelocity;
 					//UE_LOG(LogTemp, Log, TEXT("Walk on stairs")); 
 					return true;
