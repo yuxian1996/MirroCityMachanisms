@@ -17,9 +17,7 @@ AMyCharacter::AMyCharacter()
 	mMaxStepHeight = 50.0f;
 	mGravity = FVector(0, 0, -980.0f);
 	mAcceleration = 800;
-
-	auto finder = ConstructorHelpers::FClassFinder<AActor>(TEXT("/Game/FirstPersonBP/Blueprints/Ledge"));
-	mLedgeClass = finder.Class;
+	mMaxLedgeDistance = 100;
 }
 
 // Called when the game starts or when spawned
@@ -29,8 +27,9 @@ void AMyCharacter::BeginPlay()
 
 	mpMovement = GetCharacterMovement();
 	mpCapsule = GetCapsuleComponent();
-	mCone = Cast<UStaticMeshComponent>(GetComponentByClass(UStaticMeshComponent::StaticClass()));
 	mGravityNormal = mGravity.GetSafeNormal();
+	mCamera = Cast<UCameraComponent>(GetComponentByClass(UCameraComponent::StaticClass()));
+	
 }
 
 // Called every frame
@@ -121,6 +120,31 @@ void AMyCharacter::UpdateJump()
 	if(!GetWorld()->SweepSingleByChannel(hitResult, newLocation, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
 		mpCapsule->GetCollisionShape(), params))
 		SetActorLocation(newLocation);
+}
+
+FVector AMyCharacter::DetectLedge()
+{
+	FVector eyeStart = mCamera->GetComponentLocation();
+	FVector eyeEnd = eyeStart + GetActorForwardVector() * mMaxLedgeDistance;
+	FCollisionQueryParams params;
+	params.AddIgnoredActor(this);
+	FHitResult hitResult;
+
+	if (UWorld* world = GetWorld())
+	{
+		if (world->LineTraceSingleByChannel(hitResult, eyeStart, eyeEnd, ECollisionChannel::ECC_Visibility, params))
+		{
+			FVector bottom = hitResult.ImpactPoint + GetActorForwardVector();
+			FVector top = bottom + GetActorUpVector() * mMaxLedgeHeight;
+
+			if (world->LineTraceSingleByChannel(hitResult, bottom, top, ECollisionChannel::ECC_Visibility))
+			{
+				return hitResult.ImpactPoint;
+			}
+		}
+	}
+	
+	return FVector::ZeroVector;
 }
 
 void AMyCharacter::ChangeGravity(FVector iGravity, float iAngularSpeed, FVector iAxis)

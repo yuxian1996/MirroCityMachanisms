@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Runtime/Engine/Classes/Camera/CameraComponent.h"
 #include "Engine/World.h"
 #include "MyCharacter.generated.h"
 
@@ -30,6 +31,10 @@ protected:
 	// Called to update velocity when player is jumping
 	UFUNCTION(BlueprintCallable, Category = "Jump")
 		void UpdateJump();
+
+	// Called to update player location when player is holding a ledge
+	UFUNCTION(BlueprintCallable, Category = "Hold")
+		FVector DetectLedge();
 
 	// Called to start to change gravity by an angular speed (degree/second)
 	UFUNCTION(BlueprintCallable, Category = "Movement")
@@ -90,6 +95,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movement")
 		bool IsChangingGravity() { return bIsChangingGravity; };
 
+	// Setter of mLedgeDirection (normal vector)
+	UFUNCTION(BlueprintCallable, Category = "HoldLedge")
+		void SetLedgeDirection(FVector iDirection) { mLedgeDirection = iDirection; };
+
 private:
 	// Max speed when walking
 	UPROPERTY(EditDefaultsOnly, Category = "Walk", meta = (DisplayName = "Max Walk Speed"))
@@ -119,21 +128,25 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Movement", meta = (DisplayName = "Is Changing Gravity"))
 		bool bIsChangingGravity;
 
+	// Direction of the Ledge Held By Player
+	UPROPERTY(VisibleAnywhere, Category = "HoldLedge", meta = (DisplayName = "Ledge Direction"))
+		FVector mLedgeDirection;
+
 	// Normalized Gravity
 	FVector mGravityNormal;
 
 	UCharacterMovementComponent* mpMovement;
 	UCapsuleComponent* mpCapsule;
-	UStaticMeshComponent* mCone;
+	UCameraComponent* mCamera;
 
 	bool bIsBesideWall = false;
 	FVector wallNormal;
 	FVector mVelocity;
 	FTimerHandle mGravityHandle;
 	FTimerDelegate mGravityDel;
+	float mMaxLedgeDistance;
+	float mMaxLedgeHeight;
 	
-	TSubclassOf<AActor> mLedgeClass;
-
 	void MoveTo(FVector iLocation);
 	bool TryWalk(FVector& oHitNormal);
 	void Accelerate();
