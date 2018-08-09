@@ -52,6 +52,7 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "HoldOnLedge")
 		AActor* GetLedge();
 
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -95,6 +96,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movement")
 		bool IsChangingGravity() { return bIsChangingGravity; };
 
+	//
+	UFUNCTION(BlueprintPure, Category = "Walk")
+		bool IsSteppingDown() { return bIsSteppingDown; };
+
 	// Setter of mLedgeDirection (normal vector)
 	UFUNCTION(BlueprintCallable, Category = "HoldLedge")
 		void SetLedgeDirection(FVector iDirection) { mLedgeDirection = iDirection; };
@@ -132,6 +137,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "HoldLedge", meta = (DisplayName = "Ledge Direction"))
 		FVector mLedgeDirection;
 
+	UPROPERTY(VisibleAnywhere, Category = "Walk", meta = (DisplayName = "Is Stepping Down"))
+		bool bIsSteppingDown;
+
+
 	// Normalized Gravity
 	FVector mGravityNormal;
 
@@ -144,6 +153,8 @@ private:
 	FVector mVelocity;
 	FTimerHandle mGravityHandle;
 	FTimerDelegate mGravityDel;
+	FTimerHandle mStairHandle;
+	FTimerDelegate mStairDel;
 	float mMaxLedgeDistance;
 	float mMaxLedgeHeight;
 	
@@ -154,4 +165,6 @@ private:
 	UFUNCTION()
 		void ChangeGravityFunc(float iSpeed, float iRoll, FVector iRotateAxis);
 
+	UFUNCTION()
+		void MoveOnStairs(FVector iDirection, float iDistance, float iSpeed);
 };
