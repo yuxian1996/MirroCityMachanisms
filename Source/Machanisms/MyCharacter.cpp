@@ -13,7 +13,7 @@ AMyCharacter::AMyCharacter()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	mMaxWalkSpeed = 800.0f;
+	mMaxWalkSpeed = 1400.0f;
 	mMaxSlope = 45.0f;
 	mMaxStepHeight = 70.0f;
 	mGravity = FVector(0, 0, -980.0f);
@@ -61,7 +61,7 @@ void AMyCharacter::MoveTo(FVector iLocation)
 
 void AMyCharacter::UpdateWalk()
 {
-	if (GetWorldTimerManager().TimerExists(mStairHandle))
+	if (GetWorldTimerManager().TimerExists(mMoveHandle))
 	{
 		return;
 	}
@@ -251,112 +251,31 @@ bool AMyCharacter::TryWalk(FVector& oHitNormal)
 		return true;
 	}
 
-	FVector originalVelocity = mVelocity;
-
-	if (UWorld* world = GetWorld())
+	if (mVelocity.SizeSquared() <= 0.01f)
 	{
-		FVector deltaMovement = originalVelocity * world->GetDeltaSeconds();
-		FVector location = GetActorLocation();
-		FVector newLocation = location + deltaMovement;		
-		// check if next location is blocked
-		FCollisionQueryParams queryParams;
-		// ignore self
-		queryParams.AddIgnoredActor(this);
-		FCollisionResponseParams responseParams;
-		
-		FHitResult hitResult(ForceInit);
-
-		// a little bit up
-		if (!world->SweepSingleByChannel(hitResult, location - mGravityNormal, newLocation - mGravityNormal, GetActorRotation().Quaternion(), 
-			ECollisionChannel::ECC_Visibility, FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), 
-			mpCapsule->GetScaledCapsuleHalfHeight()), queryParams, responseParams))
-		{
-			FVector bottom = newLocation + mGravityNormal * mMaxStepHeight;
-			FHitResult newHit;
-
-			if (world->SweepSingleByChannel(newHit, newLocation, bottom, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
-				mpCapsule->GetCollisionShape(), queryParams, responseParams))
-			{
-				// walk on a plane
-				if (newHit.Distance <= 1 )
-				{
-					MoveTo(newLocation + mGravityNormal * newHit.Distance);
-					UE_LOG(LogTemp, Log, TEXT("Walk to %f, %f, %f"), newLocation.X, newLocation.Y, newLocation.Z);
-				}
-				else
-				{
-					// step down
-					FVector end = newLocation + mGravityNormal * newHit.Distance + originalVelocity.GetSafeNormal() * 5;
-					FVector direction = (end - GetActorLocation()).GetSafeNormal();
-					float dis = FVector::Dist(GetActorLocation(), end);
-					mStairDel.BindUFunction(this, "MoveOnStairs", direction, dis, mMaxWalkSpeed);
-					bIsSteppingDown = true;
-					GetWorldTimerManager().SetTimer(mStairHandle, mStairDel, 0.01f, true);
-					mpMovement->Velocity = originalVelocity;
-					UE_LOG(LogTemp, Log, TEXT("Stop down %f"), newHit.Distance);
-				}
-			}
-			else
-			{
-				// fall
-				MoveTo(newLocation);
-				UE_LOG(LogTemp, Log, TEXT("Fall to %f, %f, %f"), newLocation.X, newLocation.Y, newLocation.Z);
-			}
-
-			return true;
-		}
-		else
-		{
-			FVector planeVector = FVector::VectorPlaneProject(hitResult.ImpactNormal, -mGravityNormal);
-			float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));	
-			UE_LOG(LogTemp, Log, TEXT("Angle = %f"), angle);
-
-			if (angle < mMaxSlope)
-			{
-				// walk on slope
-				FHitResult hitResult1;
-				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
-					FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleHalfHeight()), queryParams, responseParams);
-
-				MoveTo(top + mGravityNormal * hitResult1.Distance);
-				UE_LOG(LogTemp, Log, TEXT("Walk on slope"));
-				return true;
-			}
-			else
-			{
-				FHitResult hitResult2;
-				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult2, top, newLocation, GetActorRotation().Quaternion(), ECollisionChannel::ECC_Visibility,
-					FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleHalfHeight()), queryParams, responseParams);
-
-				// calculate angle and height of next stairs
-				FVector nextPlaneVector = FVector::VectorPlaneProject(hitResult2.ImpactNormal, -mGravityNormal);
-				float nextAngle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(nextPlaneVector.Size())));
-				if (nextAngle < mMaxSlope && hitResult2.Distance >= 0.001f)
-				{
-					// walk on stairs
-					FVector end = top + mGravityNormal * hitResult2.Distance + originalVelocity.GetSafeNormal() * 20;
-					FVector direction = (end - GetActorLocation()).GetSafeNormal();
-					float dis = FVector::Dist(GetActorLocation(), end);
-					mStairDel.BindUFunction(this, "MoveOnStairs", direction, dis, mMaxWalkSpeed);
-					bIsSteppingDown = true;
-					GetWorldTimerManager().SetTimer(mStairHandle, mStairDel, 0.01f, true);
-					mpMovement->Velocity = originalVelocity;
-					UE_LOG(LogTemp, Log, TEXT("Walk on stairs")); 
-					return true;
-				}
-				else
-				{
-					oHitNormal = hitResult.ImpactNormal;
-					UE_LOG(LogTemp, Log, TEXT("Move beside wall")); 
-					return false;
-				}
-			}
-		}
+		return true;
 	}
 
-	return false;
+	//FVector originalVelocity = mVelocity;
+
+	FVector nextLocation = FindNextLocation();
+	if (nextLocation == FVector::ZeroVector)
+	{
+		FHitResult hitReseult;
+		FCollisionQueryParams params;
+		params.AddIgnoredActor(this);
+		GetWorld()->SweepSingleByChannel(hitReseult, GetActorLocation(), GetActorLocation() + mVelocity * GetWorld()->GetDeltaSeconds(),
+			GetActorQuat(), ECC_Visibility, mpCapsule->GetCollisionShape(-0.01f), params);
+		
+		oHitNormal = hitReseult.ImpactNormal;
+		return false;
+	}
+	else
+	{
+		MoveTo(nextLocation, mVelocity.Size());
+		return true;
+	}
+
 }
 
 void AMyCharacter::Accelerate()
@@ -368,6 +287,175 @@ void AMyCharacter::Accelerate()
 	{
 		mVelocity = mVelocity.GetSafeNormal() * mMaxWalkSpeed;
 	}
+}
+
+void AMyCharacter::MoveTo(FVector iDes, float iSpeed)
+{
+	if (!GetWorldTimerManager().TimerExists(mMoveHandle))
+	{
+		FVector direction = (iDes - GetActorLocation()).GetSafeNormal();
+		float dis = FVector::Dist(GetActorLocation(), iDes);
+		mMoveDel.BindUFunction(this, "MoveFunc", direction, dis, iSpeed);
+		bIsSteppingDown = true;
+		GetWorldTimerManager().SetTimer(mMoveHandle, mMoveDel, 0.005f, true);
+	}
+
+}
+
+FVector AMyCharacter::FindNextLocation()
+{
+	FVector originalVelocity = mVelocity;
+
+	if (UWorld* world = GetWorld())
+	{
+		//FVector deltaMovement = originalVelocity * world->GetDeltaSeconds();
+		FVector location = GetActorLocation();
+		FVector newLocation = location +  originalVelocity.GetSafeNormal() * mpCapsule->GetScaledCapsuleRadius();
+		// check if next location is blocked
+		FCollisionQueryParams queryParams;
+		// ignore self
+		queryParams.AddIgnoredActor(this);
+		FCollisionResponseParams responseParams;
+
+		FHitResult hitResult(ForceInit);
+
+		// a little bit up
+		if (!world->SweepSingleByChannel(hitResult, location - mGravityNormal, newLocation - mGravityNormal, GetActorRotation().Quaternion(),
+			ECollisionChannel::ECC_Visibility, FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams))
+		{
+			FVector bottom = newLocation + mGravityNormal * mMaxStepHeight;
+			FHitResult newHit;
+
+			if (world->SweepSingleByChannel(newHit, newLocation, bottom, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+				FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams))
+			{
+				if (newHit.Distance > 1)
+				{
+					// step down or walk down on slope
+					FVector end = newLocation + mGravityNormal * newHit.Distance;
+					FHitResult result;
+					FVector nextLocation;
+					FVector direction = originalVelocity.GetSafeNormal();
+					float width = mpCapsule->GetScaledCapsuleRadius() / 2;
+					if (world->SweepSingleByChannel(result, location + direction * width, end + direction * width, GetActorQuat(), 
+						ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width,mpCapsule->GetScaledCapsuleHalfHeight())), 
+						queryParams, responseParams))
+					{
+						// blocked
+						FVector direction = (end - location).GetSafeNormal();
+						nextLocation = location + direction * result.Distance;
+					}
+					else
+					{
+						nextLocation = end;
+					}
+
+					mpMovement->Velocity = originalVelocity;
+					UE_LOG(LogTemp, Log, TEXT("Step down to %f, %f, %f"), nextLocation.X, nextLocation.Y, nextLocation.Z);
+					return nextLocation;
+				}
+			}
+
+			// fall or
+			// walk on a plane
+			FHitResult result;
+			FVector nextLocation;
+			if (world->SweepSingleByChannel(result, location, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+				mpCapsule->GetCollisionShape(-0.001f), queryParams, responseParams))
+			{
+				//MoveTo(location + originalVelocity * result.Distance, originalVelocity.Size());
+				nextLocation = location + originalVelocity * result.Distance;
+			}
+			else
+			{
+				//MoveTo(newLocation, originalVelocity.Size());-
+				nextLocation = newLocation;
+			}
+
+			mpMovement->Velocity = originalVelocity;
+			UE_LOG(LogTemp, Log, TEXT("Walk or fall to %f, %f, %f"), nextLocation.X, nextLocation.Y, nextLocation.Z);
+			return nextLocation;
+
+		}
+		else
+		{
+			FVector planeVector = FVector::VectorPlaneProject(hitResult.ImpactNormal, -mGravityNormal);
+			float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));
+			UE_LOG(LogTemp, Log, TEXT("Angle = %f"), angle);
+
+			if (angle <= mMaxSlope)
+			{
+				// walk on slope
+				FHitResult hitResult1;
+				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
+				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+					FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams);
+
+				FHitResult hitResult2;
+				FVector end = top + mGravityNormal * hitResult1.Distance;
+				FVector nextLocation;
+				FVector direction = originalVelocity.GetSafeNormal();
+				float width = mpCapsule->GetScaledCapsuleRadius() / 2;
+
+				if (world->SweepSingleByChannel(hitResult2, location - direction * width, end - direction * width, GetActorQuat(),
+					ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight())),
+					queryParams, responseParams))
+				{
+					// blocked
+					nextLocation = location + (end - location).GetSafeNormal() * hitResult2.Distance;
+				}
+				else
+				{
+					nextLocation = end;
+				}
+				//MoveTo(top + mGravityNormal * hitResult1.Distance);
+				UE_LOG(LogTemp, Log, TEXT("Walk on slope to %f, %f, %f"), nextLocation.X, nextLocation.Y, nextLocation.Z);
+				return nextLocation;
+			}
+			else
+			{
+				FHitResult hitResult1;
+				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
+				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+					FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams);
+
+				if (hitResult1.Distance >= 0.001f)
+				{
+					// walk on stairs
+					FHitResult hitResult2;
+					FVector end = top + mGravityNormal * hitResult1.Distance;
+					FVector nextLocation;
+					FVector direction = originalVelocity.GetSafeNormal();
+					float width = mpCapsule->GetScaledCapsuleRadius() / 2;
+
+					if (world->SweepSingleByChannel(hitResult2, location - direction * width, end - direction * width, GetActorQuat(),
+						ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight())),
+						queryParams, responseParams))
+					{
+						// blocked
+						nextLocation = location + (end - location).GetSafeNormal() * hitResult2.Distance;
+					}
+					else
+					{
+						nextLocation = end;
+					}
+
+					//MoveTo(end, mMaxWalkSpeed);
+
+					mpMovement->Velocity = originalVelocity;
+					UE_LOG(LogTemp, Log, TEXT("Walk on stairs to %f, %f, %f"), nextLocation.X, nextLocation.Y, nextLocation.Z);
+					return nextLocation;
+				}
+				else
+				{
+					UE_LOG(LogTemp, Log, TEXT("Move beside wall"));
+					return FVector::ZeroVector;
+				}
+			}
+		}
+	}
+
+	return FVector::ZeroVector;
 }
 
 void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector iRotateAxis)
@@ -424,20 +512,21 @@ void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector i
 	}
 }
 
-void AMyCharacter::MoveOnStairs(FVector iDirection, float iDistance, float iSpeed)
+void AMyCharacter::MoveFunc(FVector iDirection, float iDistance, float iSpeed)
 {
 	static float length = 0;
 	if (length < iDistance)
 	{
-		float diff = iSpeed * GetWorldTimerManager().GetTimerRate(mStairHandle);
+		//float diff = iSpeed * GetWorldTimerManager().GetTimerRate(mMoveHandle);
+		float diff = mVelocity.Size() * GetWorldTimerManager().GetTimerRate(mMoveHandle);
 		SetActorLocation(GetActorLocation() + diff * iDirection);
 		length += diff;
 	}
 	else
 	{
-		SetActorLocation(GetActorLocation() + (iDistance - length) * iDirection);
+		//SetActorLocation(GetActorLocation() + (iDistance - length) * iDirection);
 		length = 0;
-		GetWorldTimerManager().ClearTimer(mStairHandle);
+		GetWorldTimerManager().ClearTimer(mMoveHandle);
 		bIsSteppingDown = false;
 	}
 

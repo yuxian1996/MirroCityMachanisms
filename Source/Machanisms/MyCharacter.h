@@ -153,18 +153,20 @@ private:
 	FVector mVelocity;
 	FTimerHandle mGravityHandle;
 	FTimerDelegate mGravityDel;
-	FTimerHandle mStairHandle;
-	FTimerDelegate mStairDel;
+	FTimerHandle mMoveHandle;
+	FTimerDelegate mMoveDel;
 	float mMaxLedgeDistance;
 	float mMaxLedgeHeight;
 	
 	void MoveTo(FVector iLocation);
 	bool TryWalk(FVector& oHitNormal);
 	void Accelerate();
+	void MoveTo(FVector iDes, float iSpeed);
+	FVector FindNextLocation();
 
 	UFUNCTION()
 		void ChangeGravityFunc(float iSpeed, float iRoll, FVector iRotateAxis);
 
 	UFUNCTION()
-		void MoveOnStairs(FVector iDirection, float iDistance, float iSpeed);
+		void MoveFunc(FVector iDirection, float iDistance, float iSpeed);
 };
