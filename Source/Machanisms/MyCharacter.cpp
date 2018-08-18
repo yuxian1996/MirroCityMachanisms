@@ -258,6 +258,19 @@ bool AMyCharacter::TryWalk(FVector& oHitNormal)
 		FVector deltaMovement = originalVelocity * world->GetDeltaSeconds();
 		FVector location = GetActorLocation();
 		FVector newLocation = location + deltaMovement;		
+
+		//int stairResult = FindStairs();
+		//if (stairResult == 1)
+		//{
+		//	MoveTo(newLocation - deltaMovement.Size() * mGravityNormal);
+		//	return true;
+		//}
+		//else if (stairResult == -1)
+		//{
+		//	MoveTo(newLocation + deltaMovement.Size() * mGravityNormal);
+		//	return true;
+		//}
+
 		// check if next location is blocked
 		FCollisionQueryParams queryParams;
 		// ignore self
@@ -309,7 +322,7 @@ bool AMyCharacter::TryWalk(FVector& oHitNormal)
 		{
 			FVector planeVector = FVector::VectorPlaneProject(hitResult.ImpactNormal, -mGravityNormal);
 			float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));	
-			UE_LOG(LogTemp, Log, TEXT("Angle = %f"), angle);
+			//UE_LOG(LogTemp, Log, TEXT("Angle = %f"), angle);
 
 			if (angle < mMaxSlope)
 			{
@@ -368,6 +381,68 @@ void AMyCharacter::Accelerate()
 	{
 		mVelocity = mVelocity.GetSafeNormal() * mMaxWalkSpeed;
 	}
+}
+
+int AMyCharacter::FindStairs()
+{
+	if (UWorld* world = GetWorld())
+	{
+		FVector deltaMovement = mVelocity * world->GetDeltaSeconds();
+		FVector location = GetActorLocation();
+		FVector newLocation = location + deltaMovement;
+		FVector direction = mVelocity.GetSafeNormal();
+		// not accurate
+		FVector nextStepLocation = location + direction * (mpCapsule->GetScaledCapsuleRadius() + mMaxStepHeight);
+		//FVector top = nextStepLocation - mGravityNormal * mMaxStepHeight;
+		//FVector bottom = nextStepLocation + mGravityNormal * mMaxStepHeight;
+
+		FHitResult result;
+		FCollisionQueryParams params;
+		params.AddIgnoredActor(this);
+		FCollisionShape shape = FCollisionShape::MakeCapsule(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleHalfHeight() - 1);
+		FCollisionShape box = FCollisionShape::MakeBox(FVector(mpCapsule->GetScaledCapsuleRadius(), mpCapsule->GetScaledCapsuleRadius(),
+			mpCapsule->GetScaledCapsuleHalfHeight() - 1));
+		
+		if (world->SweepSingleByChannel(result, location, nextStepLocation, GetActorQuat(), ECC_Visibility, box, params))
+		{
+			FVector planeVector = FVector::VectorPlaneProject(result.ImpactNormal, -mGravityNormal);
+			float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));
+			UE_LOG(LogTemp, Log, TEXT("normal = %f, %f, %f"), result.ImpactNormal.X, result.ImpactNormal.Y, result.ImpactNormal.Z);
+			DrawDebugLine(world, result.ImpactPoint, result.ImpactPoint + result.ImpactNormal * 100, FColor::Red, true);
+
+			
+			if (angle > mMaxSlope)
+			{
+				// up stairs
+				FHitResult result2;
+				FVector bottom = FVector::VectorPlaneProject(result.ImpactPoint, mGravityNormal) + location.ProjectOnToNormal(mGravityNormal);
+				FVector top = bottom - mGravityNormal * mMaxStepHeight;
+				world->SweepSingleByChannel(result2, top, bottom, GetActorRotation().Quaternion(), ECC_Visibility, shape, params);
+				if (result2.Distance >= 0.001f)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Up stairs"));
+					return 1;
+				}
+			}
+		}
+
+		
+		//if (world->SweepSingleByChannel(result, nextStepLocation, bottom, GetActorQuat(), ECC_Visibility, shape, params))
+		//{
+		//	FVector planeVector = FVector::VectorPlaneProject(result.ImpactNormal, -mGravityNormal);
+		//	float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));
+
+		//	//if(angle )
+		//	// down stairs
+		//	UE_LOG(LogTemp, Log, TEXT("Down stairs"));
+		//	return -1;
+		//}
+
+		UE_LOG(LogTemp, Log, TEXT("No stairs"));
+		return 0;
+	}
+
+	return 0;
 }
 
 void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector iRotateAxis)

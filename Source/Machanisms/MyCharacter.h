@@ -161,6 +161,7 @@ private:
 	void MoveTo(FVector iLocation);
 	bool TryWalk(FVector& oHitNormal);
 	void Accelerate();
+	int FindStairs();
 
 	UFUNCTION()
 		void ChangeGravityFunc(float iSpeed, float iRoll, FVector iRotateAxis);
