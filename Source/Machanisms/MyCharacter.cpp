@@ -311,6 +311,8 @@ FVector AMyCharacter::FindNextLocation()
 		//FVector deltaMovement = originalVelocity * world->GetDeltaSeconds();
 		FVector location = GetActorLocation();
 		FVector newLocation = location +  originalVelocity.GetSafeNormal() * mpCapsule->GetScaledCapsuleRadius();
+		FVector sphereLocation = location + mGravityNormal * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
+		FVector sphereNewLocation = newLocation + mGravityNormal * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
 		// check if next location is blocked
 		FCollisionQueryParams queryParams;
 		// ignore self
@@ -320,13 +322,14 @@ FVector AMyCharacter::FindNextLocation()
 		FHitResult hitResult(ForceInit);
 
 		// a little bit up
-		if (!world->SweepSingleByChannel(hitResult, location - mGravityNormal, newLocation - mGravityNormal, GetActorRotation().Quaternion(),
-			ECollisionChannel::ECC_Visibility, FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams))
+		if (!world->SweepSingleByChannel(hitResult, sphereLocation, sphereNewLocation, GetActorRotation().Quaternion(),
+			ECollisionChannel::ECC_Visibility, FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius() - 1), queryParams, responseParams))
 		{
 			FVector bottom = newLocation + mGravityNormal * mMaxStepHeight;
+			FVector sphereBottom = bottom + mGravityNormal * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
 			FHitResult newHit;
 
-			if (world->SweepSingleByChannel(newHit, newLocation, bottom, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+			if (world->SweepSingleByChannel(newHit, sphereNewLocation, sphereBottom, GetActorQuat(), ECollisionChannel::ECC_Visibility,
 				FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams))
 			{
 				if (newHit.Distance > 1)
@@ -337,17 +340,28 @@ FVector AMyCharacter::FindNextLocation()
 					FVector nextLocation;
 					FVector direction = originalVelocity.GetSafeNormal();
 					float width = mpCapsule->GetScaledCapsuleRadius() / 2;
-					if (world->SweepSingleByChannel(result, location + direction * width, end + direction * width, GetActorQuat(), 
-						ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width,mpCapsule->GetScaledCapsuleHalfHeight())), 
-						queryParams, responseParams))
+					//if (world->SweepSingleByChannel(result, location + direction * width, end + direction * width, GetActorQuat(), 
+					//	ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width,mpCapsule->GetScaledCapsuleHalfHeight() - 1)), 
+					//	queryParams, responseParams))
+					//{
+					//	// blocked
+					//	FVector direction = (end - location).GetSafeNormal();
+					//	nextLocation = location + direction * result.Distance;
+					//}
+					//else
+					//{
+					//	nextLocation = end;
+					//}
+					if (!world->SweepSingleByChannel(result, location, newLocation, GetActorQuat(), ECC_Visibility, mpCapsule->GetCollisionShape(-0.1f),
+						queryParams, responseParams) && !world->SweepSingleByChannel(result, newLocation, end, GetActorQuat(),
+							ECC_Visibility, mpCapsule->GetCollisionShape(-0.1f), queryParams, responseParams) || world->SweepSingleByChannel(
+								result, location, end, GetActorQuat(), ECC_Visibility, mpCapsule->GetCollisionShape(-0.1f), queryParams, responseParams))
 					{
-						// blocked
-						FVector direction = (end - location).GetSafeNormal();
-						nextLocation = location + direction * result.Distance;
+						nextLocation = end;
 					}
 					else
 					{
-						nextLocation = end;
+						nextLocation = location;
 					}
 
 					mpMovement->Velocity = originalVelocity;
@@ -361,7 +375,7 @@ FVector AMyCharacter::FindNextLocation()
 			FHitResult result;
 			FVector nextLocation;
 			if (world->SweepSingleByChannel(result, location, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
-				mpCapsule->GetCollisionShape(-0.001f), queryParams, responseParams))
+				mpCapsule->GetCollisionShape(-1), queryParams, responseParams))
 			{
 				//MoveTo(location + originalVelocity * result.Distance, originalVelocity.Size());
 				nextLocation = location + originalVelocity * result.Distance;
@@ -383,12 +397,14 @@ FVector AMyCharacter::FindNextLocation()
 			float angle = FMath::RadiansToDegrees(FMath::Abs(FMath::Asin(planeVector.Size())));
 			UE_LOG(LogTemp, Log, TEXT("Angle = %f"), angle);
 
+			FVector top = newLocation - mGravityNormal * mMaxStepHeight;
+			FVector sphereTop = top + mGravityNormal * mpCapsule->GetScaledCapsuleHalfHeight_WithoutHemisphere();
+
 			if (angle <= mMaxSlope)
 			{
 				// walk on slope
 				FHitResult hitResult1;
-				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+				world->SweepSingleByChannel(hitResult1, sphereTop, sphereNewLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
 					FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams);
 
 				FHitResult hitResult2;
@@ -397,26 +413,35 @@ FVector AMyCharacter::FindNextLocation()
 				FVector direction = originalVelocity.GetSafeNormal();
 				float width = mpCapsule->GetScaledCapsuleRadius() / 2;
 
-				if (world->SweepSingleByChannel(hitResult2, location - direction * width, end - direction * width, GetActorQuat(),
-					ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight())),
+				//if (world->SweepSingleByChannel(hitResult2, location - direction * width, end - direction * width, GetActorQuat(),
+				//	ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight() - 1)),
+				//	queryParams, responseParams))
+				//{
+				//	// blocked
+				//	nextLocation = location + (end - location).GetSafeNormal() * hitResult2.Distance;
+				//}
+				//else
+				//{
+				//	nextLocation = end;
+				//}
+
+				if (!world->SweepSingleByChannel(hitResult2, location, end, GetActorQuat(), ECC_Visibility, mpCapsule->GetCollisionShape(-0.1f),
 					queryParams, responseParams))
-				{
-					// blocked
-					nextLocation = location + (end - location).GetSafeNormal() * hitResult2.Distance;
-				}
-				else
 				{
 					nextLocation = end;
 				}
-				//MoveTo(top + mGravityNormal * hitResult1.Distance);
+				else
+				{
+					nextLocation = location;
+				}
+
 				UE_LOG(LogTemp, Log, TEXT("Walk on slope to %f, %f, %f"), nextLocation.X, nextLocation.Y, nextLocation.Z);
 				return nextLocation;
 			}
 			else
 			{
 				FHitResult hitResult1;
-				FVector top = newLocation - mGravityNormal * mMaxStepHeight;
-				world->SweepSingleByChannel(hitResult1, top, newLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
+				world->SweepSingleByChannel(hitResult1, sphereTop, sphereNewLocation, GetActorQuat(), ECollisionChannel::ECC_Visibility,
 					FCollisionShape::MakeSphere(mpCapsule->GetScaledCapsuleRadius()), queryParams, responseParams);
 
 				if (hitResult1.Distance >= 0.001f)
@@ -429,7 +454,7 @@ FVector AMyCharacter::FindNextLocation()
 					float width = mpCapsule->GetScaledCapsuleRadius() / 2;
 
 					if (world->SweepSingleByChannel(hitResult2, location - direction * width, end - direction * width, GetActorQuat(),
-						ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight())),
+						ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(width, width, mpCapsule->GetScaledCapsuleHalfHeight() - 1)),
 						queryParams, responseParams))
 					{
 						// blocked
@@ -515,16 +540,18 @@ void AMyCharacter::ChangeGravityFunc(float iAngularSpeed, float iRoll, FVector i
 void AMyCharacter::MoveFunc(FVector iDirection, float iDistance, float iSpeed)
 {
 	static float length = 0;
-	if (length < iDistance)
+	float diff = mVelocity.Size() * GetWorldTimerManager().GetTimerRate(mMoveHandle);
+
+	if (length + 2 * diff <= iDistance)
 	{
 		//float diff = iSpeed * GetWorldTimerManager().GetTimerRate(mMoveHandle);
-		float diff = mVelocity.Size() * GetWorldTimerManager().GetTimerRate(mMoveHandle);
 		SetActorLocation(GetActorLocation() + diff * iDirection);
 		length += diff;
 	}
 	else
 	{
 		//SetActorLocation(GetActorLocation() + (iDistance - length) * iDirection);
+		SetActorLocation(GetActorLocation() + diff * iDirection);
 		length = 0;
 		GetWorldTimerManager().ClearTimer(mMoveHandle);
 		bIsSteppingDown = false;
