@@ -158,7 +158,8 @@ private:
 	float mMaxLedgeDistance;
 	float mMaxLedgeHeight;
 	
-	void MoveTo(FVector iLocation);
+	// Called to move to another location, return false if blocked and pass normal of the blocked wall
+	bool MoveTo(FVector iLocation, FVector& oNormal);
 	bool TryWalk(FVector& oHitNormal);
 	void Accelerate();
 	int FindStairs();
