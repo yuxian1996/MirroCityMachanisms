@@ -117,7 +117,7 @@ void AMyCharacter::UpdateWalk()
 
 		if (!TryWalk(normal))
 		{
-			UE_LOG(LogTemp, Log, TEXT("Player is blocked"));
+			//UE_LOG(LogTemp, Log, TEXT("Player is blocked"));
 			//UE_LOG(LogTemp, Log, TEXT("normal : %f, %f, %f"), normal.X, normal.Y, normal.Z);
 
 		}
